@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,19 +16,22 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
   User,
   Bell,
   Globe,
-  Palette,
-  Shield,
   Loader2,
   Upload,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 
 export default function Settings() {
   const { profile, refreshProfile } = useAuth();
+  const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -38,10 +41,18 @@ export default function Settings() {
   const [preferences, setPreferences] = useState({
     language: 'en',
     timezone: 'UTC',
-    theme: 'system',
     emailNotifications: true,
     pushNotifications: false,
   });
+
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        fullName: profile.full_name || '',
+        email: profile.email || '',
+      });
+    }
+  }, [profile]);
 
   const handleSaveProfile = async () => {
     if (!profile) return;
@@ -85,7 +96,7 @@ export default function Settings() {
           user_id: profile.id,
           language: preferences.language,
           timezone: preferences.timezone,
-          theme: preferences.theme,
+          theme: theme,
           email_notifications: preferences.emailNotifications,
           push_notifications: preferences.pushNotifications,
         });
@@ -106,6 +117,12 @@ export default function Settings() {
       setSaving(false);
     }
   };
+
+  const themeOptions = [
+    { value: 'light', label: 'Light', icon: Sun },
+    { value: 'dark', label: 'Dark', icon: Moon },
+    { value: 'system', label: 'System', icon: Monitor },
+  ];
 
   return (
     <DashboardLayout>
@@ -230,6 +247,47 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="preferences" className="space-y-6">
+            {/* Theme Selection */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Appearance</CardTitle>
+                <CardDescription>Customize the look and feel of the app</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Label>Theme</Label>
+                  <div className="grid grid-cols-3 gap-4">
+                    {themeOptions.map((option) => {
+                      const Icon = option.icon;
+                      const isActive = theme === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => setTheme(option.value as 'light' | 'dark' | 'system')}
+                          className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                            isActive
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                        >
+                          <div
+                            className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                              isActive ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                            }`}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <span className={`text-sm font-medium ${isActive ? 'text-primary' : ''}`}>
+                            {option.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Regional Settings</CardTitle>
@@ -276,33 +334,6 @@ export default function Settings() {
                       <SelectItem value="Europe/Paris">Paris</SelectItem>
                       <SelectItem value="Asia/Tokyo">Tokyo</SelectItem>
                       <SelectItem value="Asia/Kolkata">Mumbai</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Appearance</CardTitle>
-                <CardDescription>Customize the look and feel</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Theme</Label>
-                  <Select
-                    value={preferences.theme}
-                    onValueChange={(value) =>
-                      setPreferences({ ...preferences, theme: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
