@@ -112,8 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const isApproved = profile?.state === 'APPROVED';
   const isAdmin = roles.includes('admin');
+  // Admins bypass KYC verification
+  const isApproved = isAdmin || profile?.state === 'APPROVED';
 
   return (
     <AuthContext.Provider value={{
