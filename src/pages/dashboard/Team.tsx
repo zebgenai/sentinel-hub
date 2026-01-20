@@ -15,13 +15,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { PieChartComponent } from '@/components/charts/PieChartComponent';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,12 +41,14 @@ interface Team {
   created_at: string;
 }
 
-interface TeamMember {
+interface TeamMemberWithProfile {
   id: string;
-  team_id: string;
   user_id: string;
   role: string;
-  joined_at: string;
+  profile?: {
+    full_name: string | null;
+    email: string;
+  };
 }
 
 const roleIcons: Record<string, React.ElementType> = {
@@ -80,6 +75,7 @@ export default function Team() {
   const { profile, isApproved } = useAuth();
   const { toast } = useToast();
   const [teams, setTeams] = useState<Team[]>([]);
+  const [teamMembers, setTeamMembers] = useState<Record<string, TeamMemberWithProfile[]>>({});
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newTeam, setNewTeam] = useState({ name: '', description: '' });
@@ -107,6 +103,8 @@ export default function Team() {
       .select('team_id')
       .eq('user_id', profile.id);
 
+    let allTeams: Team[] = [];
+
     if (memberTeams && memberTeams.length > 0) {
       const teamIds = memberTeams.map(m => m.team_id);
       const { data: additionalTeams } = await supabase
@@ -114,14 +112,38 @@ export default function Team() {
         .select('*')
         .in('id', teamIds);
       
-      const allTeams = [...(ownedTeams || []), ...(additionalTeams || [])];
-      const uniqueTeams = allTeams.filter((team, index, self) =>
+      allTeams = [...(ownedTeams || []), ...(additionalTeams || [])];
+      allTeams = allTeams.filter((team, index, self) =>
         index === self.findIndex(t => t.id === team.id)
       );
-      setTeams(uniqueTeams);
     } else {
-      setTeams(ownedTeams || []);
+      allTeams = ownedTeams || [];
     }
+
+    setTeams(allTeams);
+
+    // Fetch members for each team
+    const membersMap: Record<string, TeamMemberWithProfile[]> = {};
+    for (const team of allTeams) {
+      const { data: members } = await supabase
+        .from('team_members')
+        .select('id, user_id, role')
+        .eq('team_id', team.id);
+
+      if (members) {
+        const memberIds = members.map(m => m.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', memberIds);
+
+        membersMap[team.id] = members.map(m => ({
+          ...m,
+          profile: profiles?.find(p => p.id === m.user_id),
+        }));
+      }
+    }
+    setTeamMembers(membersMap);
 
     setLoading(false);
   };
@@ -177,13 +199,19 @@ export default function Team() {
     }
   };
 
-  const roleDistribution = [
-    { name: 'Owner', value: 1 },
-    { name: 'Editor', value: 3 },
-    { name: 'Script Writer', value: 2 },
-    { name: 'Thumbnail', value: 2 },
-    { name: 'Voice Over', value: 1 },
-  ];
+  // Calculate role distribution from actual team members
+  const roleDistribution = Object.values(teamMembers)
+    .flat()
+    .reduce((acc: { name: string; value: number }[], member) => {
+      const roleName = member.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const existing = acc.find(r => r.name === roleName);
+      if (existing) {
+        existing.value++;
+      } else {
+        acc.push({ name: roleName, value: 1 });
+      }
+      return acc;
+    }, []);
 
   return (
     <DashboardLayout>
@@ -291,14 +319,22 @@ export default function Team() {
                     <div className="flex items-center gap-2">
                       <p className="text-sm text-muted-foreground">Team members:</p>
                       <div className="flex -space-x-2">
-                        {[1, 2, 3].map((i) => (
-                          <Avatar key={i} className="h-8 w-8 border-2 border-background">
+                        {(teamMembers[team.id] || []).slice(0, 5).map((member) => (
+                          <Avatar key={member.id} className="h-8 w-8 border-2 border-background">
                             <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                              {String.fromCharCode(65 + i)}
+                              {member.profile?.full_name?.charAt(0) || member.profile?.email?.charAt(0) || '?'}
                             </AvatarFallback>
                           </Avatar>
                         ))}
+                        {(teamMembers[team.id]?.length || 0) > 5 && (
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium border-2 border-background">
+                            +{(teamMembers[team.id]?.length || 0) - 5}
+                          </div>
+                        )}
                       </div>
+                      {(!teamMembers[team.id] || teamMembers[team.id].length === 0) && (
+                        <span className="text-sm text-muted-foreground">No members yet</span>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -307,11 +343,23 @@ export default function Team() {
 
             {/* Role Distribution */}
             <div>
-              <PieChartComponent
-                title="Role Distribution"
-                description="Team composition by role"
-                data={roleDistribution}
-              />
+              {roleDistribution.length > 0 ? (
+                <PieChartComponent
+                  title="Role Distribution"
+                  description="Team composition by role"
+                  data={roleDistribution}
+                />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Role Distribution</CardTitle>
+                    <CardDescription>Team composition by role</CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-center py-8">
+                    <p className="text-muted-foreground">No data yet</p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         )}

@@ -19,6 +19,7 @@ import Community from "./pages/dashboard/Community";
 import KYC from "./pages/dashboard/KYC";
 import Admin from "./pages/dashboard/Admin";
 import Settings from "./pages/dashboard/Settings";
+import Messages from "./pages/dashboard/Messages";
 
 const queryClient = new QueryClient();
 
@@ -97,6 +98,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/messages"
+                element={
+                  <ProtectedRoute>
+                    <Messages />
                   </ProtectedRoute>
                 }
               />
