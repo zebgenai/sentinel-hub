@@ -975,6 +975,7 @@ export type Database = {
         Returns: boolean
       }
       generate_share_token: { Args: never; Returns: string }
+      get_user_role: { Args: { _user_id: string }; Returns: string }
       get_user_state: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_state"]
@@ -988,10 +989,11 @@ export type Database = {
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
+      is_manager_or_above: { Args: { _user_id: string }; Returns: boolean }
       is_moderator_or_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "moderator" | "user" | "manager"
       contribution_role:
         | "owner"
         | "script_writer"
@@ -1139,7 +1141,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "manager"],
       contribution_role: [
         "owner",
         "script_writer",
